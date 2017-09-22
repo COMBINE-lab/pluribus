@@ -4,6 +4,28 @@ import seaborn as sns
 import numpy as np
 import matplotlib.pyplot as plt
 
+def plotGCBias(model):
+    num_models = model.obs_.shape[0]
+
+    maxn = float(num_models)
+    labels = ["[{},{})".format(100.0*(i/maxn), 100.0*((i+1)/maxn)) for i in xrange(num_models)]
+    print(labels)
+    fig, ax = plt.subplots(num_models, 1, sharex=True, sharey=True)
+
+    sns.set_style('white')
+
+    for i in range(num_models):
+        r = np.log2(model.obs_[i,:] / model.exp_[i,:])
+        ax[i].plot(r,  label=labels[i])
+        ax[i].axhline(y=0.0, ls='dashed', color='red')
+        leg = ax[i].legend(loc='auto', shadow=True)
+        leg.get_frame().set_facecolor('green')
+        leg.get_frame().set_edgecolor('red')
+
+    sns.despine()
+    plt.suptitle('$\log_2$-odds ratio : observed / expected')
+    plt.show()
+
 def relDiffPlots(truthCol, predCol, df, bins=None):
     plt.cla()
     if bins:
