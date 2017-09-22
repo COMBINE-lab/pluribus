@@ -76,6 +76,90 @@ def readExpress(fn, suffix=""):
         pd.to_numeric(df["{}{}".format(col, suffix)], errors='ignore')
     return df
 
+def readKallistoBoot(fn, suffix=""):
+    import h5py
+    import os
+    import numpy as np
+    h5file = os.path.sep.join([fn,"abundance.h5"])
+    f = h5py.File(h5file)
+    names = map(str, f['aux']['ids'].value)
+    nboot = len(f['bootstrap'])
+    boots = []
+    for i in xrange(nboot):
+        boots.append(f['bootstrap']['bs{}'.format(i)].value)
+    y = pd.DataFrame(data=boots, dtype=np.float64).T
+    y = y.assign(Name=names).set_index('Name').sort_index()
+    y = y.apply(np.sort, axis=1)
+    return y
+
+def readSalmonBoot(fn, suffix=""):
+    import os
+    import gzip
+    import pandas as pd
+    import numpy as np
+    import struct
+    import json
+    auxDir = "aux"
+    # Check for a custom auxDir
+    with open(os.path.sep.join([fn, "cmd_info.json"])) as cmdFile:
+        dat = json.load(cmdFile)
+        if 'auxDir' in dat:
+            auxDir = dat['auxDir']
+
+    bootstrapFile = os.path.sep.join([fn, auxDir, "bootstrap", "bootstraps.gz"])
+    nameFile = os.path.sep.join([fn, auxDir, "bootstrap", "names.tsv.gz"])
+    bootstrapFile = os.path.sep.join([fn, auxDir, "bootstrap", "bootstraps.gz"])
+    nameFile = os.path.sep.join([fn, auxDir, "bootstrap", "names.tsv.gz"])
+    if not os.path.isfile(bootstrapFile):
+       print("The required bootstrap file {} doesn't appear to exist".format(bootstrapFile)) 
+       sys.exit(1)
+    if not os.path.isfile(nameFile):
+       print("The required transcript name file {} doesn't appear to exist".format(nameFile)) 
+       sys.exit(1)
+
+    txpNames = None
+    with gzip.open(nameFile) as nf:
+        txpNames = nf.read().strip().split('\t')
+    
+    ntxp = len(txpNames)
+    print("Expecting bootstrap info for {} transcripts".format(ntxp))
+    
+    with open(os.path.sep.join([fn, auxDir, "meta_info.json"])) as fh:
+        meta_info = json.load(fh)
+        
+    stype = None
+    if meta_info['samp_type'] == 'gibbs':
+        s = struct.Struct('@' + 'd' * ntxp)
+        stype = 'g'
+    elif meta_info['samp_type'] == 'bootstrap':
+        s = struct.Struct('@' + 'd' * ntxp)
+        stype = 'b'
+    else:
+        print("Unknown sampling method: {}".format(meta_info['samp_type']))
+        sys.exit(1)
+        
+    numBoot = 0
+    samps = []
+    convert = float
+    # Now, iterate over the bootstrap samples and write each
+    with gzip.open(bootstrapFile) as bf:
+        while True:
+            try:
+                x = s.unpack_from(bf.read(s.size))
+                xs = map(convert, x)
+                samps.append(xs)
+                numBoot += 1
+            except:
+                print("read all posterior values")
+                break
+
+    print("wrote {} bootstrap samples".format(numBoot))
+    print("converted bootstraps successfully.")
+    y = pd.DataFrame(data=samps, dtype=np.float64).T
+    y = y.assign(Name=txpNames).set_index('Name').sort_index()
+    y = y.apply(np.sort, axis=1)
+    return y
+
 def readSailfish(fn, suffix=""):
     df = pd.read_table(fn, engine='c').set_index('Name')
     df.columns = [ "{}{}".format(cn, suffix) for cn in df.columns.tolist()]
