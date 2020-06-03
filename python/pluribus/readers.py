@@ -185,7 +185,7 @@ def readSalmonBoot(fn, suffix=""):
 
     txpNames = None
     with gzip.open(nameFile) as nf:
-        txpNames = nf.read().strip().split('\t')
+        txpNames = nf.read().encode("utf-8").strip().split('\t')
     
     ntxp = len(txpNames)
     print("Expecting bootstrap info for {} transcripts".format(ntxp))
